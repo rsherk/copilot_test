@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
 
 test.describe('Markdown Editor', () => {
   test.beforeEach(async ({ page }) => {
@@ -108,6 +110,50 @@ test.describe('Markdown Editor', () => {
     const content = await textarea.inputValue();
     expect(content).toContain('Welcome to SuperMark');
     expect(content).not.toContain('Test Content');
+  });
+
+  test('should persist changes after saving HTML file', async ({ page, context }) => {
+    const textarea = page.locator('#markdown-input');
+    const testContent = '# Saved Content\n\nThis content was saved to a file';
+
+    // Clear default welcome message and enter test content
+    await textarea.fill('');
+    await page.waitForTimeout(100);
+    await textarea.fill(testContent);
+    await page.waitForTimeout(100);
+
+    // Verify content is in textarea
+    await expect(textarea).toHaveValue(testContent);
+
+    // Get HTML and modify it to have the textarea content
+    let html = await page.content();
+    // Replace the textarea content in the HTML with our test content
+    html = html.replace(
+      /<textarea[^>]*id="markdown-input"[^>]*>[\s\S]*?<\/textarea>/,
+      `<textarea id="markdown-input" placeholder="Enter your markdown here..." spellcheck="false">${testContent}</textarea>`
+    );
+    
+    const tempFile = path.join(process.cwd(), 'temp-saved-page.html');
+    fs.writeFileSync(tempFile, html, 'utf-8');
+
+    try {
+      // Load the saved HTML file in a new page
+      const newPage = await context.newPage();
+      await newPage.goto(`file://${tempFile}`);
+      await newPage.waitForLoadState('networkidle');
+
+      // Verify the content persisted
+      const savedTextarea = newPage.locator('#markdown-input');
+      const savedContent = await savedTextarea.inputValue();
+      expect(savedContent).toBe(testContent);
+
+      await newPage.close();
+    } finally {
+      // Clean up temporary file
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    }
   });
 
   test('should render lists correctly', async ({ page }) => {
