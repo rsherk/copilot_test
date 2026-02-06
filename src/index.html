@@ -301,10 +301,17 @@
 
         textarea.addEventListener('drop', handleImageDrop);
 
+        // If textarea has text content (from loaded HTML), use it as the value
+        if (textarea.textContent.trim() && !textarea.value) {
+            textarea.value = textarea.textContent;
+        }
+
+        // Initialize with welcome message only if truly empty
         if (textarea.value.trim() === '') {
             textarea.value = '# Welcome to SuperMark\n\nStart typing markdown here...\n\n## Features\n- **Live Preview**: See your markdown rendered in real-time\n- **Serverless**: No browser storage - changes only persist during this session\n- **Split View**: Edit on the left, preview on the right\n\n## Important\n⚠️ Changes are lost when you reload the page!';
-            renderMarkdown();
         }
+
+        renderMarkdown();
     </script>
 </body>
 </html>

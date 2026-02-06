@@ -125,12 +125,13 @@ test.describe('Markdown Editor', () => {
     // Verify content is in textarea
     await expect(textarea).toHaveValue(testContent);
 
-    // Get HTML and modify it to have the textarea content
+    // Get the HTML and inject the textarea value as text content
     let html = await page.content();
-    // Replace the textarea content in the HTML with our test content
+    // Replace textarea with its current content as text nodes
+    const escapedContent = testContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     html = html.replace(
       /<textarea[^>]*id="markdown-input"[^>]*>[\s\S]*?<\/textarea>/,
-      `<textarea id="markdown-input" placeholder="Enter your markdown here..." spellcheck="false">${testContent}</textarea>`
+      `<textarea id="markdown-input" placeholder="Enter your markdown here..." spellcheck="false">${escapedContent}</textarea>`
     );
     
     const tempFile = path.join(process.cwd(), 'temp-saved-page.html');
