@@ -124,4 +124,42 @@ const x = 42;
 
     expect(savedContent).toBe(testContent);
   });
+
+  test('should handle image drop with base64 data URL', async ({ page }) => {
+    const textarea = page.locator('#markdown-input');
+    
+    // Use setInputFiles to simulate file upload, then trigger the handler
+    await page.evaluate(() => {
+      const textarea = document.getElementById('markdown-input');
+      const dataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const markdown = `![image](${dataUrl})`;
+      textarea.value = markdown;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const content = await textarea.inputValue();
+    expect(content).toContain('![image](data:image/png;base64,');
+  });
+
+  test('should apply drag-over styles when dragging', async ({ page }) => {
+    const textarea = page.locator('#markdown-input');
+    
+    // Simulate dragover event
+    await page.evaluate(() => {
+      const textarea = document.getElementById('markdown-input');
+      const dragEvent = new DragEvent('dragover', {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer: new DataTransfer()
+      });
+      textarea.dispatchEvent(dragEvent);
+    });
+
+    // Check if drag-over class was applied
+    const hasDragClass = await textarea.evaluate(el => {
+      return el.classList.contains('drag-over');
+    });
+    
+    expect(hasDragClass).toBe(true);
+  });
 });

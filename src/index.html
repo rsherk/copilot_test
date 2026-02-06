@@ -79,6 +79,11 @@
             outline: none;
         }
 
+        textarea.drag-over {
+            background-color: #e8f4f8;
+            border: 2px dashed #3498db;
+        }
+
         .preview {
             flex: 1;
             overflow-y: auto;
@@ -254,6 +259,32 @@
             localStorage.setItem('markdown-content', content);
         }
 
+        function handleImageDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            textarea.classList.remove('drag-over');
+
+            const files = e.dataTransfer.files;
+            for (let file of files) {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const dataUrl = event.target.result;
+                        const markdown = `![image](${dataUrl})`;
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+                        const before = textarea.value.substring(0, start);
+                        const after = textarea.value.substring(end);
+                        textarea.value = before + markdown + after;
+                        textarea.selectionStart = textarea.selectionEnd = start + markdown.length;
+                        renderMarkdown();
+                        saveMarkdown();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+        }
+
         function loadMarkdown() {
             const saved = localStorage.getItem('markdown-content');
             if (saved) {
@@ -270,6 +301,20 @@
         textarea.addEventListener('change', () => {
             saveMarkdown();
         });
+
+        textarea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            textarea.classList.add('drag-over');
+        });
+
+        textarea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            textarea.classList.remove('drag-over');
+        });
+
+        textarea.addEventListener('drop', handleImageDrop);
 
         window.addEventListener('beforeunload', () => {
             saveMarkdown();
