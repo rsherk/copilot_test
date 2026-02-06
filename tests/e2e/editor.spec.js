@@ -8,6 +8,15 @@ test.describe('Markdown Editor', () => {
     await page.reload();
   });
 
+  test('should have correct page title', async ({ page }) => {
+    await expect(page).toHaveTitle('SuperMark');
+  });
+
+  test('should display correct header text', async ({ page }) => {
+    const header = page.locator('header h1');
+    await expect(header).toContainText('SuperMark');
+  });
+
   test('should render basic markdown', async ({ page }) => {
     const textarea = page.locator('#markdown-input');
     const preview = page.locator('#preview');
