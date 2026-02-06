@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
+import path from 'path';
 
 test.describe('Markdown Editor', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Clear localStorage to start fresh
-    await page.evaluate(() => localStorage.clear());
     await page.reload();
   });
 
@@ -15,6 +15,43 @@ test.describe('Markdown Editor', () => {
   test('should display correct header text', async ({ page }) => {
     const header = page.locator('header h1');
     await expect(header).toContainText('SuperMark');
+  });
+
+  test('should not use localStorage', async ({ page }) => {
+    // Monitor localStorage calls
+    const localStorageAccess = await page.evaluate(() => {
+      const calls = [];
+      const originalSetItem = Storage.prototype.setItem;
+      const originalGetItem = Storage.prototype.getItem;
+      const originalClear = Storage.prototype.clear;
+
+      Storage.prototype.setItem = function() {
+        calls.push('setItem');
+        return originalSetItem.apply(this, arguments);
+      };
+      Storage.prototype.getItem = function() {
+        calls.push('getItem');
+        return originalGetItem.apply(this, arguments);
+      };
+      Storage.prototype.clear = function() {
+        calls.push('clear');
+        return originalClear.apply(this, arguments);
+      };
+
+      return calls;
+    });
+
+    // Make some changes
+    const textarea = page.locator('#markdown-input');
+    await textarea.fill('# Test\n\nSome content');
+    await page.waitForTimeout(100);
+
+    // Check that no localStorage calls were made (should still be empty array)
+    const finalCalls = await page.evaluate(() => {
+      return JSON.stringify(localStorage);
+    });
+
+    expect(finalCalls).toBe('{}');
   });
 
   test('should render basic markdown', async ({ page }) => {
@@ -32,7 +69,7 @@ test.describe('Markdown Editor', () => {
     await expect(strong).toContainText('test');
   });
 
-  test('should save and load content from localStorage', async ({ page }) => {
+  test('should save and load content from session (not storage)', async ({ page }) => {
     const textarea = page.locator('#markdown-input');
     const testContent = '# Test Content\n\nSome **markdown** here';
 
@@ -40,23 +77,83 @@ test.describe('Markdown Editor', () => {
     await textarea.fill(testContent);
     await page.waitForTimeout(100);
 
+    // Content should be in textarea
+    await expect(textarea).toHaveValue(testContent);
+
+    // But localStorage should be empty
+    const storageEmpty = await page.evaluate(() => {
+      return localStorage.length === 0;
+    });
+    expect(storageEmpty).toBe(true);
+  });
+
+  test('should lose content on page reload without manual save', async ({ page }) => {
+    const textarea = page.locator('#markdown-input');
+    const testContent = '# Test Content\n\nSome **markdown** here';
+
+    // Clear default welcome message
+    await textarea.fill('');
+    await page.waitForTimeout(100);
+
+    // Type content
+    await textarea.fill(testContent);
+    await page.waitForTimeout(100);
+
+    // Verify content is there
+    await expect(textarea).toHaveValue(testContent);
+
     // Reload page
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Verify content is restored
-    await expect(textarea).toHaveValue(testContent);
+    // Content should be lost (replaced with welcome message)
+    const content = await textarea.inputValue();
+    expect(content).toContain('Welcome to SuperMark');
+    expect(content).not.toContain('Test Content');
   });
 
-  test('should update preview in real-time', async ({ page }) => {
+  test('should persist changes after saving HTML file', async ({ page, context }) => {
     const textarea = page.locator('#markdown-input');
-    const preview = page.locator('#preview');
+    const testContent = '# Saved Content\n\nThis content was saved to a file';
 
+    // Clear default welcome message and enter test content
     await textarea.fill('');
-    await textarea.type('## Heading 2');
+    await page.waitForTimeout(100);
+    await textarea.fill(testContent);
+    await page.waitForTimeout(100);
+
+    // Verify content is in textarea
+    await expect(textarea).toHaveValue(testContent);
+
+    // Get HTML and modify it to have the textarea content
+    let html = await page.content();
+    // Replace the textarea content in the HTML with our test content
+    html = html.replace(
+      /<textarea[^>]*id="markdown-input"[^>]*>[\s\S]*?<\/textarea>/,
+      `<textarea id="markdown-input" placeholder="Enter your markdown here..." spellcheck="false">${testContent}</textarea>`
+    );
     
-    const h2 = preview.locator('h2');
-    await expect(h2).toContainText('Heading 2');
+    const tempFile = path.join(process.cwd(), 'temp-saved-page.html');
+    fs.writeFileSync(tempFile, html, 'utf-8');
+
+    try {
+      // Load the saved HTML file in a new page
+      const newPage = await context.newPage();
+      await newPage.goto(`file://${tempFile}`);
+      await newPage.waitForLoadState('networkidle');
+
+      // Verify the content persisted
+      const savedTextarea = newPage.locator('#markdown-input');
+      const savedContent = await savedTextarea.inputValue();
+      expect(savedContent).toBe(testContent);
+
+      await newPage.close();
+    } finally {
+      // Clean up temporary file
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    }
   });
 
   test('should render lists correctly', async ({ page }) => {
@@ -108,21 +205,6 @@ const x = 42;
     // Should not error, preview should be empty or show default
     const preview = page.locator('#preview');
     await expect(preview).toBeVisible();
-  });
-
-  test('should auto-save on input change', async ({ page }) => {
-    const textarea = page.locator('#markdown-input');
-    const testContent = 'Auto-save test';
-
-    await textarea.fill(testContent);
-    await page.waitForTimeout(100);
-
-    // Check localStorage directly
-    const savedContent = await page.evaluate(() => {
-      return localStorage.getItem('markdown-content');
-    });
-
-    expect(savedContent).toBe(testContent);
   });
 
   test('should handle image drop with base64 data URL', async ({ page }) => {

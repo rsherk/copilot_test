@@ -254,10 +254,7 @@
             }
         }
 
-        function saveMarkdown() {
-            const content = textarea.value;
-            localStorage.setItem('markdown-content', content);
-        }
+
 
         function handleImageDrop(e) {
             e.preventDefault();
@@ -278,28 +275,16 @@
                         textarea.value = before + markdown + after;
                         textarea.selectionStart = textarea.selectionEnd = start + markdown.length;
                         renderMarkdown();
-                        saveMarkdown();
                     };
                     reader.readAsDataURL(file);
                 }
             }
         }
 
-        function loadMarkdown() {
-            const saved = localStorage.getItem('markdown-content');
-            if (saved) {
-                textarea.value = saved;
-                renderMarkdown();
-            }
-        }
+
 
         textarea.addEventListener('input', () => {
             renderMarkdown();
-            saveMarkdown();
-        });
-
-        textarea.addEventListener('change', () => {
-            saveMarkdown();
         });
 
         textarea.addEventListener('dragover', (e) => {
@@ -316,16 +301,9 @@
 
         textarea.addEventListener('drop', handleImageDrop);
 
-        window.addEventListener('beforeunload', () => {
-            saveMarkdown();
-        });
-
-        loadMarkdown();
-
         if (textarea.value.trim() === '') {
-            textarea.value = '# Welcome to Markdown Editor\n\nStart typing markdown here...\n\n## Features\n- **Live Preview**: See your markdown rendered in real-time\n- **Auto Save**: Your content is automatically saved\n- **Split View**: Edit on the left, preview on the right';
+            textarea.value = '# Welcome to SuperMark\n\nStart typing markdown here...\n\n## Features\n- **Live Preview**: See your markdown rendered in real-time\n- **Serverless**: No browser storage - changes only persist during this session\n- **Split View**: Edit on the left, preview on the right\n\n## Important\n⚠️ Changes are lost when you reload the page!';
             renderMarkdown();
-            saveMarkdown();
         }
     </script>
 </body>
